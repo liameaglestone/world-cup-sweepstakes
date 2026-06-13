@@ -266,8 +266,8 @@
       background: rgba(245,158,11,0.05);
       border-color: rgba(245,158,11,0.2);
     }
-    .prize-row.is-yours.card--blue { background: rgba(59,130,246,0.05); border-color: rgba(59,130,246,0.2); }
-    .prize-row.is-yours.card--red  { background: rgba(239,68,68,0.05);  border-color: rgba(239,68,68,0.2); }
+    .card--blue .prize-row.is-yours { background: rgba(59,130,246,0.05); border-color: rgba(59,130,246,0.2); }
+    .card--red  .prize-row.is-yours { background: rgba(239,68,68,0.05);  border-color: rgba(239,68,68,0.2); }
     .p-icon { font-size: 17px; flex-shrink: 0; width: 26px; text-align: center; }
     .p-body { flex: 1; min-width: 0; }
     .p-name {
@@ -733,7 +733,7 @@ function hasStandingsData(data) {
   if (Array.isArray(data?.standings) && data.standings.length > 0) return true;
   if (data?.standings?.groups?.length > 0) return true;
   if (data?.children?.length > 0) return true;   // sports.core format
-  if (data?.items?.length > 0 && !data.items[0]?.$ref) return true; // paginated core format
+  if (data?.items?.length > 0 && !data.items[0]?.$ref) return true; // paginated core (skip $ref-only pages)
   return false;
 }
 
@@ -749,12 +749,15 @@ async function fetchSummary(eventId) {
   return apiFetch(`${ESPN}/summary?event=${eventId}`);
 }
 
-// Returns array of 'YYYYMMDD' strings from WC_START through today
+const WC_END = new Date('2026-07-19'); // Final
+
+// Returns array of 'YYYYMMDD' strings from WC_START through today (capped at WC_END)
 function wcDates() {
   const dates = [];
   const today = new Date();
   today.setHours(23, 59, 59);
-  for (let d = new Date(WC_START); d <= today; d.setDate(d.getDate() + 1)) {
+  const cap = today < WC_END ? today : WC_END;
+  for (let d = new Date(WC_START); d <= cap; d.setDate(d.getDate() + 1)) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -844,7 +847,7 @@ function seedMatchCache(data) {
     const homeC = comp.competitors?.find(c => c.homeAway === 'home') ?? comp.competitors?.[0];
     const awayC = comp.competitors?.find(c => c.homeAway === 'away') ?? comp.competitors?.[1];
     state.matchCache[ev.id] = {
-      processed: false,
+      processed: false, fetchErrors: 0,
       completed,
       groupStage: ev.season?.slug === 'group-stage',
       home: normEspn(homeC?.team?.displayName ?? ''),
@@ -1051,17 +1054,31 @@ function aggBiggestDefeats() {
 }
 
 function getFirstRedCard() {
-  const matches = Object.values(state.matchCache)
-    .filter(m => m.completed && m.reds.length > 0)
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-  return matches[0]?.reds[0] ?? null;
+  const all = [];
+  for (const m of Object.values(state.matchCache)) {
+    if (!m.completed) continue;
+    for (const r of m.reds) all.push({ ...r, matchDate: m.date });
+  }
+  all.sort((a, b) => {
+    const dateCmp = new Date(a.matchDate) - new Date(b.matchDate);
+    if (dateCmp !== 0) return dateCmp;
+    return parseInt(a.min) - parseInt(b.min);
+  });
+  return all[0] ?? null;
 }
 
 function getFirstPenalty() {
-  const matches = Object.values(state.matchCache)
-    .filter(m => m.completed && m.pens.length > 0)
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-  return matches[0]?.pens[0] ?? null;
+  const all = [];
+  for (const m of Object.values(state.matchCache)) {
+    if (!m.completed) continue;
+    for (const p of m.pens) all.push({ ...p, matchDate: m.date });
+  }
+  all.sort((a, b) => {
+    const dateCmp = new Date(a.matchDate) - new Date(b.matchDate);
+    if (dateCmp !== 0) return dateCmp;
+    return parseInt(a.min) - parseInt(b.min);
+  });
+  return all[0] ?? null;
 }
 
 /* ════════════════════════════════════════════════════════
@@ -1403,7 +1420,7 @@ async function refreshData() {
 
     // ── 3. Summaries for any unprocessed completed matches ────────────────
     const toFetch = Object.entries(state.matchCache)
-      .filter(([, m]) => m.completed && !m.processed)
+      .filter(([, m]) => m.completed && !m.processed && (m.fetchErrors ?? 0) < 3)
       .map(([id]) => id);
 
     console.log('[WC] Fetching', toFetch.length, 'match summaries');
@@ -1411,7 +1428,10 @@ async function refreshData() {
       toFetch.map(id =>
         fetchSummary(id)
           .then(data => processSummary(id, data))
-          .catch(e => console.warn('[WC] Summary failed for', id, e.message))
+          .catch(e => {
+            state.matchCache[id].fetchErrors = (state.matchCache[id].fetchErrors ?? 0) + 1;
+            console.warn('[WC] Summary failed for', id, `(attempt ${state.matchCache[id].fetchErrors})`, e.message);
+          })
       )
     );
     console.log('[WC] Match cache:', Object.keys(state.matchCache).length, 'entries,',
