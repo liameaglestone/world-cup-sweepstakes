@@ -489,14 +489,20 @@
       if (done) summaryTestUrl = `${ESPN_BASE}/summary?event=${done.id}`;
     } catch(_) {}
 
+    // Also grab the first completed event from June 12
+    let summaryTestUrl2 = null;
+    try {
+      const sb12 = await fetch(`${ESPN_BASE}/scoreboard?dates=20260612&limit=20`).then(r=>r.json());
+      const done12 = (sb12?.events ?? []).find(ev => ev.competitions?.[0]?.status?.type?.completed === true);
+      if (done12) summaryTestUrl2 = `${ESPN_BASE}/summary?event=${done12.id}`;
+    } catch(_) {}
+
     const tests = [
-      `${ESPN_BASE}/standings`,
-      `${ESPN_BASE}/standings?season=2026`,
-      `${ESPN_BASE}/standings?season=2026&seasontype=2`,
-      `https://sports.core.api.espn.com/v2/sports/soccer/leagues/fifa.world/seasons/2026/types/2/groups?limit=20`,
       `${ESPN_BASE}/scoreboard?dates=20260611&limit=20`,
+      `${ESPN_BASE}/scoreboard?dates=20260612&limit=20`,
       `${ESPN_BASE}/scoreboard?dates=20260613&limit=20`,
-      ...(summaryTestUrl ? [summaryTestUrl] : []),
+      ...(summaryTestUrl  ? [summaryTestUrl]  : []),
+      ...(summaryTestUrl2 ? [summaryTestUrl2] : []),
     ];
 
     for (const url of tests) {
@@ -530,15 +536,14 @@
           const details = comp?.details ?? [];
           extra = `\n   match: ${teams}`;
           extra += `\n   details count: ${details.length}`;
-          details.slice(0, 6).forEach((d, i) => {
-            extra += `\n   detail[${i}]: yellowCard:${d.yellowCard} redCard:${d.redCard} penaltyKick:${d.penaltyKick} | type:"${d.type?.text}" | team:${d.team?.displayName} | clock:${d.clock?.displayValue}`;
+          details.slice(0, 8).forEach((d, i) => {
+            extra += `\n   detail[${i}]: yellowCard:${d.yellowCard} redCard:${d.redCard} penaltyKick:${d.penaltyKick} | typeId:${d.type?.id} typeDesc:${d.type?.description} | team:${d.team?.displayName} | clock:${d.clock?.displayValue}`;
           });
-          // Also check boxscore for yellow/corner stats
+          // Show all boxscore stat names so we can find the correct corner stat
           const bsTeams = data.boxscore?.teams ?? [];
           bsTeams.forEach(t => {
-            const yc = t.statistics?.find(s => s.name==='yellowCards');
-            const ck = t.statistics?.find(s => s.name==='cornerKicks');
-            extra += `\n   boxscore ${t.team?.displayName}: yellowCards=${yc?.displayValue??'?'} cornerKicks=${ck?.displayValue??'?'}`;
+            const allStats = (t.statistics ?? []).map(s => `${s.name}=${s.displayValue}`).join(', ');
+            extra += `\n   boxscore ${t.team?.displayName}: ${allStats}`;
           });
         } else {
           extra = `\n   preview: ${JSON.stringify(data).slice(0, 300)}`;
