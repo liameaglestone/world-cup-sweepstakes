@@ -443,6 +443,15 @@
     Refresh
   </button>
 </div>
+<!-- Debug bar — hidden by default, visible when ?debug is in the URL -->
+<div id="dbg-bar" style="display:none; background:#0a0f1e; border-top:1px solid #1e3a5f; padding:6px 18px; font-size:11px; color:#6b7a9a; font-family:monospace;">
+  <span id="dbg">–</span>
+</div>
+<script>
+  if (location.search.includes('debug')) {
+    document.getElementById('dbg-bar').style.display = 'block';
+  }
+</script>
 
 <script>
 'use strict';
@@ -561,9 +570,17 @@ const ESPN = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world';
 const WC_START = new Date('2026-06-11');
 
 async function apiFetch(url) {
-  const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!r.ok) throw new Error(`${r.status}`);
-  return r.json();
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  } catch (e) {
+    clearTimeout(t);
+    throw e;
+  }
 }
 
 async function fetchStandings() {
@@ -1043,10 +1060,32 @@ function renderTicker() {
 
 function renderAll() {
   const grid = document.getElementById('grid');
-  if (state.apiError && !Object.keys(state.standings).length) {
-    grid.innerHTML = `<div class="error-banner">⚠️ Could not reach the ESPN API. Check your connection, then refresh.</div>`;
+  const standingsCount = Object.keys(state.standings).length;
+  const matchCount     = Object.keys(state.matchCache).length;
+  const processedCount = Object.values(state.matchCache).filter(m => m.processed).length;
+
+  // Update debug panel
+  const dbg = document.getElementById('dbg');
+  if (dbg) {
+    dbg.innerHTML = [
+      `Standings: <b>${standingsCount} teams</b>`,
+      `Matches in cache: <b>${matchCount}</b> (${processedCount} summarised)`,
+      `Live: <b>${state.liveMatches.length}</b>`,
+      `Last refresh: <b>${state.lastUpdated ? new Date(state.lastUpdated).toLocaleTimeString() : '—'}</b>`,
+      state.apiError ? `<span style="color:#f87171">⚠ API error on last refresh</span>` : '',
+      standingsCount === 0 && !state.apiError ? `<span style="color:#fbbf24">⚠ Standings returned empty — check console</span>` : '',
+    ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+  }
+
+  if (standingsCount === 0) {
+    grid.innerHTML = `<div class="error-banner">
+      ${state.apiError
+        ? '⚠️ Could not reach the ESPN API — check your connection and refresh.'
+        : '⚠️ Connected but no standings data yet — ESPN may still be loading. Refreshing…'}
+    </div>`;
     return;
   }
+
   grid.innerHTML = SWEEPSTAKES.map(renderCard).join('');
   renderTicker();
   updateTimestamps();
@@ -1066,7 +1105,7 @@ function updateTimestamps() {
    them on every page load.
 ════════════════════════════════════════════════════════ */
 
-const CACHE_KEY = 'wc26_matchCache';
+const CACHE_KEY = 'wc26_matchCache_v2'; // v2: fixes event details parsing
 const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
 
 function saveCache() {
@@ -1114,11 +1153,22 @@ async function refreshData() {
       fetchStandings(),
       fetchScoreboardDate(todayStr),
     ]);
-    if (standingsRes.status === 'fulfilled') processStandings(standingsRes.value);
+
+    if (standingsRes.status === 'fulfilled') {
+      processStandings(standingsRes.value);
+      console.log('[WC] Standings OK — teams loaded:', Object.keys(state.standings).length);
+    } else {
+      console.error('[WC] Standings FAILED:', standingsRes.reason);
+    }
+
     if (todayRes.status === 'fulfilled') {
       updateLiveMatches(todayRes.value);
       seedMatchCache(todayRes.value);
+      console.log('[WC] Today scoreboard OK — events:', todayRes.value?.events?.length ?? 0, '| live:', state.liveMatches.length);
+    } else {
+      console.error('[WC] Today scoreboard FAILED:', todayRes.reason);
     }
+
     if (standingsRes.status === 'rejected' && todayRes.status === 'rejected') {
       state.apiError = true;
     }
@@ -1142,13 +1192,16 @@ async function refreshData() {
       .filter(([, m]) => m.completed && !m.processed)
       .map(([id]) => id);
 
+    console.log('[WC] Fetching', toFetch.length, 'match summaries');
     await Promise.allSettled(
       toFetch.map(id =>
         fetchSummary(id)
           .then(data => processSummary(id, data))
-          .catch(() => {})
+          .catch(e => console.warn('[WC] Summary failed for', id, e.message))
       )
     );
+    console.log('[WC] Match cache:', Object.keys(state.matchCache).length, 'entries,',
+      Object.values(state.matchCache).filter(m => m.processed).length, 'processed');
 
     state.lastUpdated = Date.now();
     renderAll();
