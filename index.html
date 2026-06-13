@@ -436,20 +436,94 @@
     <span class="sep"></span>
     <span id="footer-updated">–</span>
   </div>
-  <button class="refresh-btn" id="refresh-btn" onclick="manualRefresh()">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-    </svg>
-    Refresh
-  </button>
+  <div style="display:flex; gap:8px;">
+    <button class="refresh-btn" onclick="runDiagnostics()" style="opacity:0.6;">🔍 Diagnose</button>
+    <button class="refresh-btn" id="refresh-btn" onclick="manualRefresh()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+      Refresh
+    </button>
+  </div>
 </div>
 <!-- Debug bar — hidden by default, visible when ?debug is in the URL -->
 <div id="dbg-bar" style="display:none; background:#0a0f1e; border-top:1px solid #1e3a5f; padding:6px 18px; font-size:11px; color:#6b7a9a; font-family:monospace;">
   <span id="dbg">–</span>
 </div>
+
+<!-- API Diagnostic Panel — triggered by the Run Diagnostics button -->
+<div id="diag-panel" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:9999; overflow:auto; padding:24px;">
+  <div style="max-width:800px; margin:0 auto; background:#0d1120; border:1px solid #1e3a5f; border-radius:12px; padding:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h2 style="font-size:16px; font-weight:700;">API Diagnostics</h2>
+      <button onclick="document.getElementById('diag-panel').style.display='none'"
+              style="background:#1a2236; border:1px solid #2a3a56; color:#eef2ff; padding:6px 14px; border-radius:6px; cursor:pointer; font-family:inherit;">✕ Close</button>
+    </div>
+    <div id="diag-output" style="font-family:monospace; font-size:12px; line-height:1.7; color:#8892a4;">Running…</div>
+    <button onclick="copyDiag()"
+            style="margin-top:16px; background:#1a2236; border:1px solid #2a3a56; color:#eef2ff; padding:8px 16px; border-radius:6px; cursor:pointer; font-family:inherit; font-size:12px;">
+      📋 Copy all results
+    </button>
+  </div>
+</div>
+
 <script>
   if (location.search.includes('debug')) {
     document.getElementById('dbg-bar').style.display = 'block';
+  }
+
+  let _diagText = '';
+
+  async function runDiagnostics() {
+    document.getElementById('diag-panel').style.display = 'block';
+    const out = document.getElementById('diag-output');
+    _diagText = '';
+    out.innerHTML = '';
+
+    const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world';
+    const tests = [
+      `${ESPN_BASE}/standings`,
+      `${ESPN_BASE}/standings?season=2026`,
+      `${ESPN_BASE}/standings?season=2026&seasontype=2`,
+      `https://sports.core.api.espn.com/v2/sports/soccer/leagues/fifa.world/seasons/2026/types/2/groups?limit=20`,
+      `${ESPN_BASE}/scoreboard?dates=20260611&limit=20`,
+      `${ESPN_BASE}/scoreboard?dates=20260613&limit=20`,
+    ];
+
+    for (const url of tests) {
+      const shortUrl = url.replace('https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/', '')
+                         .replace('https://sports.core.api.espn.com/v2/sports/soccer/leagues/fifa.world/', 'core/');
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 10000);
+        const r = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(t);
+        const data = await r.json();
+        const preview = JSON.stringify(data).slice(0, 400);
+        const keys = Object.keys(data ?? {});
+        const line = `✅ ${shortUrl}\n   status: ${r.status} | keys: [${keys.join(', ')}]\n   preview: ${preview}\n\n`;
+        out.innerHTML += `<div style="margin-bottom:12px; padding:10px; background:#0a0f1e; border-radius:6px; border-left:3px solid #22c55e; word-break:break-all;">
+          <b style="color:#22c55e">✅ ${shortUrl}</b><br>
+          <span style="color:#6b7a9a">status: ${r.status} &nbsp;|&nbsp; keys: [${keys.join(', ')}]</span><br>
+          ${preview}
+        </div>`;
+        _diagText += line;
+      } catch (e) {
+        const line = `❌ ${shortUrl}\n   error: ${e.message}\n\n`;
+        out.innerHTML += `<div style="margin-bottom:12px; padding:10px; background:#0a0f1e; border-radius:6px; border-left:3px solid #ef4444; word-break:break-all;">
+          <b style="color:#ef4444">❌ ${shortUrl}</b><br>
+          <span style="color:#6b7a9a">${e.message}</span>
+        </div>`;
+        _diagText += line;
+      }
+    }
+    out.innerHTML += '<div style="color:#f59e0b; margin-top:8px;">Done — click "Copy all results" and share with Claude.</div>';
+  }
+
+  function copyDiag() {
+    navigator.clipboard.writeText(_diagText).catch(() => {
+      prompt('Copy this:', _diagText);
+    });
   }
 </script>
 
