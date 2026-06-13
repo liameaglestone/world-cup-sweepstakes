@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>World Cup 2026 — Sweepstakes Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #07090f;
+      --surface:   #0d1120;
+      --surface2:  #131929;
+      --surface3:  #1a2236;
+      --border:    rgba(255,255,255,0.07);
+      --border2:   rgba(255,255,255,0.12);
+      --text:      #eef2ff;
+      --muted:     #6b7a9a;
+      --muted2:    #8892a4;
+      --gold:      #f59e0b;
+      --gold-dim:  rgba(245,158,11,0.12);
+      --blue:      #3b82f6;
+      --blue-dim:  rgba(59,130,246,0.12);
+      --red:       #ef4444;
+      --red-dim:   rgba(239,68,68,0.12);
+      --green:     #22c55e;
+      --green-dim: rgba(34,197,94,0.12);
+      --radius:    14px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 52px 24px 44px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(245,158,11,0.13) 0%, transparent 65%),
+        radial-gradient(ellipse 60% 40% at 80% 120%, rgba(59,130,246,0.08) 0%, transparent 55%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(245,158,11,0.1);
+      border: 1px solid rgba(245,158,11,0.25);
+      color: var(--gold);
+      padding: 5px 14px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .hero h1 {
+      font-size: clamp(30px, 5.5vw, 52px);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 1.08;
+      margin-bottom: 14px;
+    }
+    .hero h1 .hl {
+      background: linear-gradient(135deg, #f59e0b 10%, #ef4444 90%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: 14px;
+      color: var(--muted2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .hero-sub .sep { width: 3px; height: 3px; border-radius: 50%; background: var(--muted); }
+    .pulse-dot {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--green);
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .pulse-dot::before {
+      content: '';
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: glow 2s ease-in-out infinite;
+    }
+    @keyframes glow {
+      0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+      50%      { opacity:0.6; box-shadow: 0 0 0 5px rgba(34,197,94,0); }
+    }
+
+    /* ── LAYOUT ── */
+    .main {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 28px 18px 100px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .card:hover {
+      border-color: var(--border2);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+    }
+    .card-accent {
+      height: 3px;
+      border-radius: 3px 3px 0 0;
+    }
+    .card--gold .card-accent { background: linear-gradient(90deg, #d97706, #f59e0b, #fcd34d); }
+    .card--blue .card-accent { background: linear-gradient(90deg, #1d4ed8, #3b82f6, #60a5fa); }
+    .card--red  .card-accent { background: linear-gradient(90deg, #b91c1c, #ef4444, #f87171); }
+
+    /* ── CARD HEADER ── */
+    .card-head {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .card-name {
+      font-size: 17px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      line-height: 1.2;
+    }
+    .prize-pool {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--gold);
+      line-height: 1;
+    }
+    .prize-pool span { font-size: 13px; font-weight: 500; color: var(--muted2); }
+    .card-chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 3px 10px;
+      font-size: 11px;
+      color: var(--muted2);
+      font-weight: 500;
+    }
+
+    /* ── TEAMS ── */
+    .teams-wrap {
+      padding: 14px 18px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-label {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .teams-list { display: flex; flex-direction: column; gap: 8px; }
+    .team-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 13px;
+      transition: border-color 0.2s;
+    }
+    .team-row:hover { border-color: var(--border2); }
+    .team-row.team-live {
+      border-color: rgba(34,197,94,0.3);
+      background: rgba(34,197,94,0.04);
+    }
+    .t-flag { font-size: 26px; line-height: 1; flex-shrink: 0; }
+    .t-body { flex: 1; min-width: 0; }
+    .t-name { font-size: 14px; font-weight: 600; }
+    .t-sub  { font-size: 11px; color: var(--muted2); margin-top: 2px; }
+    .t-right { text-align: right; flex-shrink: 0; }
+    .t-record { font-size: 13px; font-weight: 600; }
+    .t-pts { font-size: 11px; color: var(--muted2); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+    .badge--live      { background: var(--green-dim);  color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+    .badge--advancing { background: var(--blue-dim);   color: #60a5fa;      border: 1px solid rgba(59,130,246,0.2); }
+    .badge--groups    { background: var(--surface3);   color: var(--muted2);border: 1px solid var(--border); }
+    .badge--out       { background: var(--red-dim);    color: #f87171;      border: 1px solid rgba(239,68,68,0.15); }
+    .badge--tbd       { background: var(--surface3);   color: var(--muted); border: 1px solid var(--border); }
+    .badge--winner    { background: rgba(245,158,11,0.15); color: var(--gold); border: 1px solid rgba(245,158,11,0.25); }
+
+    /* ── PRIZES ── */
+    .prizes-wrap { padding: 14px 18px 16px; flex: 1; }
+    .prize-list  { display: flex; flex-direction: column; gap: 7px; }
+    .prize-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 11px;
+      background: var(--surface2);
+      border: 1px solid transparent;
+      border-radius: 9px;
+      transition: border-color 0.2s;
+    }
+    .prize-row:hover { border-color: var(--border); }
+    .prize-row.is-yours {
+      background: rgba(245,158,11,0.05);
+      border-color: rgba(245,158,11,0.2);
+    }
+    .prize-row.is-yours.card--blue { background: rgba(59,130,246,0.05); border-color: rgba(59,130,246,0.2); }
+    .prize-row.is-yours.card--red  { background: rgba(239,68,68,0.05);  border-color: rgba(239,68,68,0.2); }
+    .p-icon { font-size: 17px; flex-shrink: 0; width: 26px; text-align: center; }
+    .p-body { flex: 1; min-width: 0; }
+    .p-name {
+      font-size: 12.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .p-value { font-size: 11px; color: var(--gold); font-weight: 500; margin-top: 1px; }
+    .p-right { text-align: right; flex-shrink: 0; max-width: 45%; }
+    .p-leader { font-size: 12px; font-weight: 600; line-height: 1.3; }
+    .p-stat   { font-size: 10.5px; color: var(--muted2); margin-top: 1px; }
+    .yours-tag {
+      display: inline-block;
+      background: rgba(245,158,11,0.15);
+      color: var(--gold);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      vertical-align: middle;
+      margin-left: 3px;
+    }
+
+    /* ── FOOTER BAR ── */
+    .footer-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(13,17,32,0.9);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      z-index: 200;
+    }
+    .footer-left { font-size: 12px; color: var(--muted2); display: flex; align-items: center; gap: 10px; }
+    .footer-left .sep { width: 3px; height: 3px; border-radius: 50%; background: var(--muted); }
+    #refresh-countdown { font-variant-numeric: tabular-nums; }
+    .refresh-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .refresh-btn:hover { background: var(--surface3); border-color: var(--border2); }
+    .refresh-btn.spinning svg { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── LOADING / ERROR ── */
+    .skeleton {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 40px 20px;
+      color: var(--muted);
+      font-size: 13px;
+      grid-column: 1/-1;
+    }
+    .sk-spin {
+      width: 18px; height: 18px;
+      border: 2px solid var(--border2);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    .error-banner {
+      grid-column: 1/-1;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.2);
+      color: #fca5a5;
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    /* ── LIVE MATCH TICKER ── */
+    .live-ticker {
+      background: rgba(34,197,94,0.06);
+      border-bottom: 1px solid rgba(34,197,94,0.15);
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .live-ticker:empty { display: none; }
+    .ticker-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--green);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .ticker-match {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(34,197,94,0.08);
+      border: 1px solid rgba(34,197,94,0.15);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .ticker-match .score { color: var(--green); margin: 0 2px; }
+    .ticker-match .clock { font-size: 10px; color: var(--muted2); font-weight: 400; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 1000px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 680px) {
+      .grid { grid-template-columns: 1fr; }
+      .hero { padding: 36px 16px 32px; }
+      .main { padding: 20px 12px 90px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-badge">⚽ FIFA World Cup 2026</div>
+  <h1>Sweepstakes <span class="hl">Tracker</span></h1>
+  <div class="hero-sub">
+    <span class="pulse-dot">Live Data</span>
+    <span class="sep"></span>
+    <span id="hero-updated">Loading...</span>
+    <span class="sep"></span>
+    <span>3 sweepstakes · USA, Canada &amp; Mexico</span>
+  </div>
+</header>
+
+<div class="live-ticker" id="live-ticker"></div>
+
+<main class="main">
+  <div class="grid" id="grid">
+    <div class="skeleton"><div class="sk-spin"></div> Fetching tournament data…</div>
+  </div>
+</main>
+
+<div class="footer-bar">
+  <div class="footer-left">
+    <span id="refresh-countdown">–</span>
+    <span class="sep"></span>
+    <span id="footer-updated">–</span>
+  </div>
+  <button class="refresh-btn" id="refresh-btn" onclick="manualRefresh()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+    </svg>
+    Refresh
+  </button>
+</div>
+
+<script>
+'use strict';
+
+/* ════════════════════════════════════════════════════════
+   SWEEPSTAKE CONFIG
+════════════════════════════════════════════════════════ */
+
+const SWEEPSTAKES = [
+  {
+    id: 'eaglestone',
+    name: 'Eaglestone Family',
+    icon: '👨‍👩‍👧‍👦',
+    color: 'gold',
+    buyIn: 3,
+    participants: 17,
+    teams: [
+      { name: 'Colombia',    flag: '🇨🇴', espn: 'Colombia',    primary: true  },
+      { name: 'Ivory Coast', flag: '🇨🇮', espn: 'Ivory Coast', primary: false },
+    ],
+    prizes: [
+      { icon: '🏆', name: 'WC Winner',                stat: 'tournament_winner'    },
+      { icon: '⚡', name: 'Goal of the Tournament',   stat: 'goal_of_tournament'  },
+      { icon: '🟥', name: 'First Red Card',           stat: 'first_red_card'      },
+      { icon: '🟨', name: 'Most Group Stage Yellows', stat: 'group_yellows'       },
+      { icon: '💰', name: 'Second Team Past Groups',  stat: 'second_team_groups', note: 'Ivory Coast must reach R32' },
+    ],
+  },
+  {
+    id: 'hill',
+    name: 'Hill Family',
+    icon: '🏠',
+    color: 'blue',
+    buyIn: 3,
+    participants: 22,
+    teams: [
+      { name: 'Congo DR', flag: '🇨🇩', espn: 'DR Congo', primary: true  },
+      { name: 'England',  flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', espn: 'England',  primary: false },
+    ],
+    prizes: [
+      { icon: '🏆', name: 'WC Winner',                  stat: 'tournament_winner'   },
+      { icon: '🥈', name: 'Runner Up',                   stat: 'tournament_runner_up'},
+      { icon: '⚡', name: 'Goal of the Tournament',     stat: 'goal_of_tournament'  },
+      { icon: '⛳', name: 'Most Group Stage Corners',   stat: 'group_corners'       },
+      { icon: '🟨', name: 'Most Group Stage Yellows',   stat: 'group_yellows'       },
+      { icon: '🥅', name: 'First Penalty Conceded',     stat: 'first_penalty'       },
+    ],
+  },
+  {
+    id: 'bridgemere',
+    name: 'Bridgemere Work',
+    icon: '💼',
+    color: 'red',
+    buyIn: 10,
+    participants: 16,
+    teams: [
+      { name: 'Spain', flag: '🇪🇸', espn: 'Spain', primary: true  },
+      { name: 'TBD',   flag: '❓',  espn: null,    primary: false },
+      { name: 'TBD',   flag: '❓',  espn: null,    primary: false },
+    ],
+    prizes: [
+      { icon: '🏆', name: 'WC Winner',           stat: 'tournament_winner',    value: 70 },
+      { icon: '🥅', name: 'Most Goals Conceded', stat: 'most_goals_conceded',  value: 30 },
+      { icon: '📉', name: 'Biggest Defeat',       stat: 'biggest_defeat',       value: 30 },
+      { icon: '🧤', name: 'Most Clean Sheets',   stat: 'most_clean_sheets',    value: 30 },
+    ],
+  },
+];
+
+/* ════════════════════════════════════════════════════════
+   TEAM NAME NORMALISATION
+   Maps ESPN display names → canonical names used in config
+════════════════════════════════════════════════════════ */
+
+const ESPN_NAME_MAP = {
+  'ivory coast':                'Ivory Coast',
+  "côte d'ivoire":              'Ivory Coast',
+  "cote d'ivoire":              'Ivory Coast',
+  'dr congo':                   'DR Congo',
+  'congo dr':                   'DR Congo',
+  'democratic republic of congo':'DR Congo',
+  'congo, dr':                  'DR Congo',
+  'colombia':                   'Colombia',
+  'england':                    'England',
+  'spain':                      'Spain',
+};
+
+function normEspn(name) {
+  if (!name) return name;
+  return ESPN_NAME_MAP[name.toLowerCase()] ?? name;
+}
+
+function myTeamNames(sw) {
+  return sw.teams.map(t => t.espn).filter(Boolean).map(normEspn);
+}
+
+/* ════════════════════════════════════════════════════════
+   APP STATE
+════════════════════════════════════════════════════════ */
+
+const state = {
+  standings:      {},   // normalised team name → { position, group, pts, gp, gf, ga, gd, note }
+  matchCache:     {},   // eventId → { processed, completed, groupStage, home, away, homeScore, awayScore,
+                        //             yellows:{team→n}, corners:{team→n}, reds:[{team,min}], pens:[{team,min}] }
+  liveMatches:    [],   // [{home,away,homeScore,awayScore,clock,eventId}]
+  fetchedEventIds:new Set(),
+  lastUpdated:    null,
+  apiError:       false,
+};
+
+/* ════════════════════════════════════════════════════════
+   ESPN API
+════════════════════════════════════════════════════════ */
+
+const ESPN = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world';
+
+async function apiFetch(url) {
+  const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error(`${r.status}`);
+  return r.json();
+}
+
+async function fetchStandings() {
+  return apiFetch(`${ESPN}/standings`);
+}
+
+async function fetchScoreboard(dateRange) {
+  const suffix = dateRange ? `?dates=${dateRange}&limit=200` : '';
+  return apiFetch(`${ESPN}/scoreboard${suffix}`);
+}
+
+async function fetchSummary(eventId) {
+  return apiFetch(`${ESPN}/summary?event=${eventId}`);
+}
+
+/* ════════════════════════════════════════════════════════
+   DATA PROCESSING
+════════════════════════════════════════════════════════ */
+
+function processStandings(data) {
+  // ESPN standings can be either data.standings (array of groups) or data.standings.groups
+  const groups = Array.isArray(data?.standings)
+    ? data.standings
+    : (data?.standings?.groups ?? []);
+
+  for (const group of groups) {
+    const groupName = group.name ?? group.shortName ?? '';
+    const entries = group.standings?.entries ?? group.entries ?? [];
+    for (const entry of entries) {
+      const raw = entry.team?.displayName;
+      if (!raw) continue;
+      const name = normEspn(raw);
+      const stats = {};
+      for (const s of (entry.stats ?? [])) stats[s.name] = s.value;
+      state.standings[name] = {
+        name,
+        rawName:  raw,
+        abbrev:   entry.team?.abbreviation,
+        group:    groupName,
+        position: entry.rank,
+        note:     entry.note?.description ?? '',
+        pts:  stats.points       ?? 0,
+        gp:   stats.gamesPlayed  ?? 0,
+        wins: stats.wins         ?? 0,
+        draws:stats.ties         ?? 0,
+        losses:stats.losses      ?? 0,
+        gf:   stats.pointsFor    ?? stats.goalsFor    ?? 0,
+        ga:   stats.pointsAgainst?? stats.goalsAgainst?? 0,
+        gd:  (stats.pointsFor ?? 0) - (stats.pointsAgainst ?? 0),
+      };
+    }
+  }
+}
+
+function processScoreboard(data) {
+  state.liveMatches = [];
+  const events = data?.events ?? [];
+  const completedIds = [];
+
+  for (const ev of events) {
+    const comp  = ev.competitions?.[0];
+    if (!comp) continue;
+    const statusName = comp.status?.type?.name ?? '';
+    const isLive      = statusName === 'STATUS_IN_PROGRESS';
+    const isCompleted = statusName === 'STATUS_FINAL';
+
+    if (isLive || isCompleted) {
+      const [c1, c2] = comp.competitors ?? [];
+      const home = normEspn(c1?.homeAway === 'home' ? c1.team?.displayName : c2?.team?.displayName);
+      const away = normEspn(c1?.homeAway === 'away' ? c1.team?.displayName : c2?.team?.displayName);
+      const homeScore = parseInt(c1?.homeAway === 'home' ? c1.score : c2?.score) || 0;
+      const awayScore = parseInt(c1?.homeAway === 'away' ? c1.score : c2?.score) || 0;
+
+      if (isLive) {
+        state.liveMatches.push({ home, away, homeScore, awayScore, clock: comp.status?.displayClock, eventId: ev.id });
+      }
+      if (isCompleted) {
+        completedIds.push({ id: ev.id, home, away, homeScore, awayScore, season: ev.season?.type });
+        // Seed basic match data if not cached
+        if (!state.matchCache[ev.id]) {
+          state.matchCache[ev.id] = { processed: false, completed: true, groupStage: true, home, away, homeScore, awayScore, yellows:{}, corners:{}, reds:[], pens:[] };
+        }
+      }
+    }
+  }
+  return completedIds;
+}
+
+function processSummary(eventId, data) {
+  const cached = state.matchCache[eventId];
+  if (!cached || cached.processed) return;
+
+  // Yellow cards & corners from boxscore
+  for (const teamData of (data?.boxscore?.teams ?? [])) {
+    const name = normEspn(teamData.team?.displayName);
+    if (!name) continue;
+    for (const s of (teamData.statistics ?? [])) {
+      const v = parseInt(s.displayValue ?? s.value ?? 0) || 0;
+      if (s.name === 'yellowCards'  || s.label === 'Yellow Cards')   cached.yellows[name] = v;
+      if (s.name === 'cornerKicks'  || s.label === 'Corner Kicks')   cached.corners[name] = v;
+    }
+  }
+
+  // Red cards & penalties from plays/key events
+  const plays = data?.keyEvents ?? data?.plays ?? [];
+  for (const play of plays) {
+    const typeId   = String(play.type?.id ?? '');
+    const typeText = (play.type?.text ?? '').toLowerCase();
+    const team     = normEspn(play.team?.displayName ?? play.participants?.[0]?.athlete?.team?.displayName);
+    const min      = play.clock?.displayValue ?? '?';
+
+    if (typeId === '73' || typeText.includes('red card') || typeText === 'red_card') {
+      cached.reds.push({ team, min });
+    }
+    if (typeId === '66' || typeText.includes('penalty') && typeText.includes('concede')) {
+      cached.pens.push({ team, min });
+    }
+  }
+
+  cached.processed = true;
+}
+
+/* ════════════════════════════════════════════════════════
+   COMPUTED / AGGREGATED STATS
+════════════════════════════════════════════════════════ */
+
+function teamIsLive(espnName) {
+  const n = normEspn(espnName);
+  return state.liveMatches.some(m => m.home === n || m.away === n);
+}
+
+function getTeamStanding(espnName) {
+  return state.standings[normEspn(espnName)] ?? null;
+}
+
+function aggGroupYellows() {
+  const out = {};
+  for (const m of Object.values(state.matchCache)) {
+    if (!m.completed) continue;
+    for (const [t, v] of Object.entries(m.yellows)) out[t] = (out[t] ?? 0) + v;
+  }
+  return out;
+}
+
+function aggGroupCorners() {
+  const out = {};
+  for (const m of Object.values(state.matchCache)) {
+    if (!m.completed) continue;
+    for (const [t, v] of Object.entries(m.corners)) out[t] = (out[t] ?? 0) + v;
+  }
+  return out;
+}
+
+function aggCleanSheets() {
+  const out = {};
+  for (const m of Object.values(state.matchCache)) {
+    if (!m.completed) continue;
+    if (m.awayScore === 0) out[m.home] = (out[m.home] ?? 0) + 1;
+    if (m.homeScore === 0) out[m.away] = (out[m.away] ?? 0) + 1;
+  }
+  return out;
+}
+
+function aggGoalsConceded() {
+  const out = {};
+  for (const [name, s] of Object.entries(state.standings)) {
+    out[name] = s.ga;
+  }
+  return out;
+}
+
+function aggBiggestDefeats() {
+  const out = {};
+  for (const m of Object.values(state.matchCache)) {
+    if (!m.completed) continue;
+    const margin = m.homeScore - m.awayScore;
+    if (margin > 0) {
+      const cur = out[m.away];
+      if (!cur || margin > cur.margin) out[m.away] = { margin, score: `${m.awayScore}–${m.homeScore}`, opp: m.home };
+    } else if (margin < 0) {
+      const cur = out[m.home];
+      if (!cur || -margin > cur.margin) out[m.home] = { margin: -margin, score: `${m.homeScore}–${m.awayScore}`, opp: m.away };
+    }
+  }
+  return out;
+}
+
+function getFirstRedCard() {
+  let first = null;
+  for (const m of Object.values(state.matchCache)) {
+    if (!m.completed || !m.reds.length) continue;
+    for (const r of m.reds) {
+      if (!first) first = r;
+    }
+  }
+  return first;
+}
+
+function getFirstPenalty() {
+  let first = null;
+  for (const m of Object.values(state.matchCache)) {
+    if (!m.completed || !m.pens.length) continue;
+    for (const p of m.pens) {
+      if (!first) first = p;
+    }
+  }
+  return first;
+}
+
+/* ════════════════════════════════════════════════════════
+   STAT RESOLVERS
+════════════════════════════════════════════════════════ */
+
+function topEntry(map) {
+  return Object.entries(map).sort((a,b) => b[1] - a[1])[0] ?? null;
+}
+
+function resolveStat(stat, sw) {
+  const mine = myTeamNames(sw);
+  const isYours = (name) => mine.includes(normEspn(name));
+
+  switch (stat) {
+    case 'tournament_winner': {
+      return { label: 'TBD', sub: 'Tournament in progress', yours: false };
+    }
+    case 'tournament_runner_up': {
+      return { label: 'TBD', sub: 'Tournament in progress', yours: false };
+    }
+    case 'goal_of_tournament': {
+      return { label: 'Pending', sub: 'Announced at tournament end', yours: false };
+    }
+    case 'first_red_card': {
+      const r = getFirstRedCard();
+      if (!r) return { label: 'None yet', sub: 'Tracking from match data', yours: false };
+      return { label: r.team, sub: `${r.min}'`, yours: isYours(r.team) };
+    }
+    case 'group_yellows': {
+      const m = aggGroupYellows();
+      const top = topEntry(m);
+      if (!top) return { label: 'Loading…', sub: null, yours: false };
+      const [team, count] = top;
+      const others = Object.entries(m).filter(([t]) => isYours(t)).sort((a,b)=>b[1]-a[1]);
+      const yourBest = others[0];
+      return {
+        label: team,
+        sub: `${count} yellow${count!==1?'s':''}`,
+        yours: isYours(team),
+        extra: (yourBest && !isYours(team)) ? `Your best: ${yourBest[0]} (${yourBest[1]})` : null,
+      };
+    }
+    case 'group_corners': {
+      const m = aggGroupCorners();
+      const top = topEntry(m);
+      if (!top) return { label: 'Loading…', sub: null, yours: false };
+      const [team, count] = top;
+      return { label: team, sub: `${count} corner${count!==1?'s':''}`, yours: isYours(team) };
+    }
+    case 'second_team_groups': {
+      const ic = getTeamStanding('Ivory Coast');
+      if (!ic) return { label: 'Checking…', sub: null, yours: false };
+      const advanced = ic.note?.toLowerCase().includes('advance') || ic.position <= 2;
+      if (advanced) return { label: '✅ Ivory Coast', sub: 'Progressed — money back!', yours: true };
+      return {
+        label: `${ordinal(ic.position)} in ${ic.group}`,
+        sub: `${ic.pts} pts · ${ic.gp} played`,
+        yours: false,
+      };
+    }
+    case 'first_penalty': {
+      const p = getFirstPenalty();
+      if (!p) return { label: 'None yet', sub: 'Tracking from match data', yours: false };
+      return { label: p.team, sub: `${p.min}'`, yours: isYours(p.team) };
+    }
+    case 'most_goals_conceded': {
+      const m = aggGoalsConceded();
+      const top = topEntry(m);
+      if (!top) return { label: 'Loading…', sub: null, yours: false };
+      const [team, count] = top;
+      return { label: team, sub: `${count} conceded`, yours: isYours(team) };
+    }
+    case 'biggest_defeat': {
+      const m = aggBiggestDefeats();
+      const sorted = Object.entries(m).sort((a,b) => b[1].margin - a[1].margin);
+      if (!sorted.length) return { label: 'Tracking…', sub: null, yours: false };
+      const [team, d] = sorted[0];
+      return { label: team, sub: `${d.score} vs ${d.opp}`, yours: isYours(team) };
+    }
+    case 'most_clean_sheets': {
+      const m = aggCleanSheets();
+      const top = topEntry(m);
+      if (!top) return { label: 'Loading…', sub: null, yours: false };
+      const [team, count] = top;
+      return { label: team, sub: `${count} clean sheet${count!==1?'s':''}`, yours: isYours(team) };
+    }
+    default:
+      return { label: '–', sub: null, yours: false };
+  }
+}
+
+function ordinal(n) {
+  if (!n) return '?';
+  const s = ['th','st','nd','rd'];
+  const v = n % 100;
+  return n + (s[(v-20)%10] ?? s[v] ?? s[0]);
+}
+
+/* ════════════════════════════════════════════════════════
+   RENDERING
+════════════════════════════════════════════════════════ */
+
+function renderTeamStatus(team) {
+  if (!team.espn) return `<span class="badge badge--tbd">TBD</span>`;
+  if (teamIsLive(team.espn)) return `<span class="badge badge--live">● Live</span>`;
+
+  const s = getTeamStanding(team.espn);
+  if (!s) return `<span class="badge badge--tbd">Checking…</span>`;
+
+  if (s.note?.toLowerCase().includes('advance') || (s.position <= 2 && s.gp >= 3)) {
+    return `<span class="badge badge--advancing">✓ Advancing</span>`;
+  }
+  if (s.note?.toLowerCase().includes('eliminat') || (s.position > 2 && s.gp >= 3)) {
+    return `<span class="badge badge--out">Eliminated</span>`;
+  }
+  const pos = s.position ? `${ordinal(s.position)} · ` : '';
+  return `<span class="badge badge--groups">${pos}${s.group}</span>`;
+}
+
+function renderTeamRecord(team) {
+  if (!team.espn) return '';
+  const s = getTeamStanding(team.espn);
+  if (!s || !s.gp) return '';
+  return `${s.gf}–${s.ga}`;
+}
+
+function renderTeamPts(team) {
+  if (!team.espn) return '';
+  const s = getTeamStanding(team.espn);
+  if (!s || !s.gp) return '';
+  return `${s.pts}pts · ${s.gp}GP`;
+}
+
+function renderCard(sw) {
+  const pool = sw.buyIn * sw.participants;
+
+  const teamsHtml = sw.teams.map(team => {
+    const isLive = team.espn && teamIsLive(team.espn);
+    const record  = renderTeamRecord(team);
+    const pts     = renderTeamPts(team);
+    return `
+      <div class="team-row${isLive ? ' team-live' : ''}">
+        <span class="t-flag">${team.flag}</span>
+        <div class="t-body">
+          <div class="t-name">${team.name}</div>
+          <div class="t-sub">${renderTeamStatus(team)}</div>
+        </div>
+        ${record ? `<div class="t-right"><div class="t-record">${record}</div><div class="t-pts">${pts}</div></div>` : ''}
+      </div>`;
+  }).join('');
+
+  const prizesHtml = sw.prizes.map(prize => {
+    const res = resolveStat(prize.stat, sw);
+    const valueHtml = prize.value ? `<div class="p-value">£${prize.value}</div>` : '';
+    const yoursTag  = res.yours ? `<span class="yours-tag">YOURS</span>` : '';
+    return `
+      <div class="prize-row${res.yours ? ' is-yours' : ''}">
+        <span class="p-icon">${prize.icon}</span>
+        <div class="p-body">
+          <div class="p-name">${prize.name}</div>
+          ${valueHtml}
+        </div>
+        <div class="p-right">
+          <div class="p-leader">${res.label}${yoursTag}</div>
+          ${res.sub  ? `<div class="p-stat">${res.sub}</div>`   : ''}
+          ${res.extra? `<div class="p-stat" style="color:var(--gold);opacity:.8">${res.extra}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="card card--${sw.color}">
+      <div class="card-accent"></div>
+      <div class="card-head">
+        <div class="card-title-row">
+          <div class="card-name">${sw.icon} ${sw.name}</div>
+          <div class="prize-pool">£${pool}<span> pot</span></div>
+        </div>
+        <div class="card-chips">
+          <span class="chip">£${sw.buyIn} buy-in</span>
+          <span class="chip">👥 ${sw.participants} players</span>
+        </div>
+      </div>
+      <div class="teams-wrap">
+        <div class="section-label">Your Teams</div>
+        <div class="teams-list">${teamsHtml}</div>
+      </div>
+      <div class="prizes-wrap">
+        <div class="section-label">Prize Categories</div>
+        <div class="prize-list">${prizesHtml}</div>
+      </div>
+    </div>`;
+}
+
+function renderTicker() {
+  const ticker = document.getElementById('live-ticker');
+  if (!state.liveMatches.length) { ticker.innerHTML = ''; return; }
+  ticker.innerHTML = `
+    <span class="ticker-label">Live Now</span>
+    ${state.liveMatches.map(m => `
+      <div class="ticker-match">
+        ${m.home} <span class="score">${m.homeScore}–${m.awayScore}</span> ${m.away}
+        <span class="clock">${m.clock ?? ''}</span>
+      </div>`).join('')}`;
+}
+
+function renderAll() {
+  const grid = document.getElementById('grid');
+  if (state.apiError && !Object.keys(state.standings).length) {
+    grid.innerHTML = `<div class="error-banner">⚠️ Could not reach the ESPN API. Check your connection, then refresh.</div>`;
+    return;
+  }
+  grid.innerHTML = SWEEPSTAKES.map(renderCard).join('');
+  renderTicker();
+  updateTimestamps();
+}
+
+function updateTimestamps() {
+  if (!state.lastUpdated) return;
+  const diff = Math.round((Date.now() - state.lastUpdated) / 1000);
+  const ago  = diff < 60 ? `${diff}s ago` : `${Math.round(diff/60)}m ago`;
+  document.getElementById('hero-updated').textContent = `Updated ${ago}`;
+  document.getElementById('footer-updated').textContent = `Last updated ${ago}`;
+}
+
+/* ════════════════════════════════════════════════════════
+   REFRESH LOOP
+════════════════════════════════════════════════════════ */
+
+let _refreshTimer   = null;
+let _countdownTimer = null;
+let _nextRefreshAt  = null;
+
+async function refreshData(force = false) {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  state.apiError = false;
+
+  try {
+    // Fetch standings and today's scoreboard in parallel
+    const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    const wc_start = '20260611';
+    const wc_end   = '20260719';
+
+    const [standingsData, boardData] = await Promise.allSettled([
+      fetchStandings(),
+      fetchScoreboard(`${wc_start}-${wc_end}`).catch(() => fetchScoreboard()),
+    ]);
+
+    if (standingsData.status === 'fulfilled') processStandings(standingsData.value);
+    if (boardData.status === 'fulfilled')     processScoreboard(boardData.value);
+
+    if (standingsData.status === 'rejected' && boardData.status === 'rejected') {
+      state.apiError = true;
+    }
+
+    // Fetch summaries for uncached completed matches (up to 30 most recent)
+    const toFetch = Object.entries(state.matchCache)
+      .filter(([, m]) => m.completed && !m.processed)
+      .slice(-30)
+      .map(([id]) => id);
+
+    await Promise.allSettled(
+      toFetch.map(id =>
+        fetchSummary(id)
+          .then(data => processSummary(id, data))
+          .catch(() => { /* silently skip */ })
+      )
+    );
+
+    state.lastUpdated = Date.now();
+    renderAll();
+
+  } catch (err) {
+    console.warn('Refresh error:', err);
+    state.apiError = true;
+    renderAll();
+  } finally {
+    btn.classList.remove('spinning');
+    scheduleNext();
+  }
+}
+
+function scheduleNext() {
+  clearTimeout(_refreshTimer);
+  clearInterval(_countdownTimer);
+
+  const interval = state.liveMatches.length > 0 ? 30 : 60;
+  _nextRefreshAt  = Date.now() + interval * 1000;
+  _refreshTimer   = setTimeout(() => refreshData(), interval * 1000);
+
+  _countdownTimer = setInterval(() => {
+    const remaining = Math.max(0, Math.round((_nextRefreshAt - Date.now()) / 1000));
+    document.getElementById('refresh-countdown').textContent = `Refreshes in ${remaining}s`;
+    updateTimestamps();
+  }, 1000);
+}
+
+function manualRefresh() {
+  clearTimeout(_refreshTimer);
+  clearInterval(_countdownTimer);
+  refreshData(true);
+}
+
+/* ════════════════════════════════════════════════════════
+   BOOT
+════════════════════════════════════════════════════════ */
+
+refreshData();
+</script>
+</body>
+</html>
