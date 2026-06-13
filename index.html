@@ -481,6 +481,14 @@
     out.innerHTML = '';
 
     const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world';
+    // First, grab a completed event ID from June 11 so we can test a summary
+    let summaryTestUrl = null;
+    try {
+      const sb11 = await fetch(`${ESPN_BASE}/scoreboard?dates=20260611&limit=20`).then(r=>r.json());
+      const done = (sb11?.events ?? []).find(ev => ev.competitions?.[0]?.status?.type?.completed === true);
+      if (done) summaryTestUrl = `${ESPN_BASE}/summary?event=${done.id}`;
+    } catch(_) {}
+
     const tests = [
       `${ESPN_BASE}/standings`,
       `${ESPN_BASE}/standings?season=2026`,
@@ -488,6 +496,7 @@
       `https://sports.core.api.espn.com/v2/sports/soccer/leagues/fifa.world/seasons/2026/types/2/groups?limit=20`,
       `${ESPN_BASE}/scoreboard?dates=20260611&limit=20`,
       `${ESPN_BASE}/scoreboard?dates=20260613&limit=20`,
+      ...(summaryTestUrl ? [summaryTestUrl] : []),
     ];
 
     for (const url of tests) {
@@ -501,18 +510,35 @@
         const data = await r.json();
         const keys = Object.keys(data ?? {});
 
-        // For scoreboard: show event count + status/teams of first 3 events
+        // For scoreboard: show event count + status/teams/id of each event
         let extra = '';
         if (url.includes('scoreboard') && data?.events) {
           extra = `\n   events: ${data.events.length}`;
-          data.events.slice(0, 5).forEach((ev, i) => {
+          data.events.slice(0, 8).forEach((ev, i) => {
             const comp = ev.competitions?.[0];
             const statusName = comp?.status?.type?.name ?? '?';
             const completed  = comp?.status?.type?.completed ?? '?';
             const teams = (comp?.competitors ?? [])
               .map(c => `${c.team?.displayName ?? '?'}(${c.score ?? '?'})`)
               .join(' v ');
-            extra += `\n   [${i}] ${statusName} (completed:${completed}) | ${teams}`;
+            extra += `\n   [${i}] id:${ev.id} | ${statusName} (completed:${completed}) | ${teams}`;
+          });
+        } else if (url.includes('summary') && data?.header) {
+          // For summary: show teams, details count, and structure of first few details
+          const comp = data.header?.competitions?.[0];
+          const teams = (comp?.competitors ?? []).map(c=>`${c.team?.displayName}(${c.score})`).join(' v ');
+          const details = comp?.details ?? [];
+          extra = `\n   match: ${teams}`;
+          extra += `\n   details count: ${details.length}`;
+          details.slice(0, 6).forEach((d, i) => {
+            extra += `\n   detail[${i}]: yellowCard:${d.yellowCard} redCard:${d.redCard} penaltyKick:${d.penaltyKick} | type:"${d.type?.text}" | team:${d.team?.displayName} | clock:${d.clock?.displayValue}`;
+          });
+          // Also check boxscore for yellow/corner stats
+          const bsTeams = data.boxscore?.teams ?? [];
+          bsTeams.forEach(t => {
+            const yc = t.statistics?.find(s => s.name==='yellowCards');
+            const ck = t.statistics?.find(s => s.name==='cornerKicks');
+            extra += `\n   boxscore ${t.team?.displayName}: yellowCards=${yc?.displayValue??'?'} cornerKicks=${ck?.displayValue??'?'}`;
           });
         } else {
           extra = `\n   preview: ${JSON.stringify(data).slice(0, 300)}`;
