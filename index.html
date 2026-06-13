@@ -499,14 +499,30 @@
         const r = await fetch(url, { signal: ctrl.signal });
         clearTimeout(t);
         const data = await r.json();
-        const preview = JSON.stringify(data).slice(0, 400);
         const keys = Object.keys(data ?? {});
-        const line = `✅ ${shortUrl}\n   status: ${r.status} | keys: [${keys.join(', ')}]\n   preview: ${preview}\n\n`;
-        out.innerHTML += `<div style="margin-bottom:12px; padding:10px; background:#0a0f1e; border-radius:6px; border-left:3px solid #22c55e; word-break:break-all;">
-          <b style="color:#22c55e">✅ ${shortUrl}</b><br>
-          <span style="color:#6b7a9a">status: ${r.status} &nbsp;|&nbsp; keys: [${keys.join(', ')}]</span><br>
-          ${preview}
-        </div>`;
+
+        // For scoreboard: show event count + status/teams of first 3 events
+        let extra = '';
+        if (url.includes('scoreboard') && data?.events) {
+          extra = `\n   events: ${data.events.length}`;
+          data.events.slice(0, 5).forEach((ev, i) => {
+            const comp = ev.competitions?.[0];
+            const statusName = comp?.status?.type?.name ?? '?';
+            const completed  = comp?.status?.type?.completed ?? '?';
+            const teams = (comp?.competitors ?? [])
+              .map(c => `${c.team?.displayName ?? '?'}(${c.score ?? '?'})`)
+              .join(' v ');
+            extra += `\n   [${i}] ${statusName} (completed:${completed}) | ${teams}`;
+          });
+        } else {
+          extra = `\n   preview: ${JSON.stringify(data).slice(0, 300)}`;
+        }
+
+        const line = `✅ ${shortUrl}\n   status: ${r.status} | keys: [${keys.join(', ')}]${extra}\n\n`;
+        out.innerHTML += `<div style="margin-bottom:12px; padding:10px; background:#0a0f1e; border-radius:6px; border-left:3px solid #22c55e; word-break:break-all; white-space:pre-wrap;">
+<b style="color:#22c55e">✅ ${shortUrl}</b>
+<span style="color:#6b7a9a">HTTP ${r.status} | keys: [${keys.join(', ')}]</span>${extra}
+</div>`;
         _diagText += line;
       } catch (e) {
         const line = `❌ ${shortUrl}\n   error: ${e.message}\n\n`;
