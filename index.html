@@ -584,12 +584,44 @@ async function apiFetch(url) {
 }
 
 async function fetchStandings() {
-  return apiFetch(`${ESPN}/standings`);
+  // Try several URL variants — ESPN sometimes requires season/seasontype params
+  const urls = [
+    `${ESPN}/standings`,
+    `${ESPN}/standings?season=2026`,
+    `${ESPN}/standings?season=2026&seasontype=2`,
+    `https://sports.core.api.espn.com/v2/sports/soccer/leagues/fifa.world/seasons/2026/types/2/groups?limit=20`,
+  ];
+  for (const url of urls) {
+    try {
+      const data = await apiFetch(url);
+      // Check if this response actually has standings data
+      if (hasStandingsData(data)) {
+        console.log('[WC] Standings found at:', url);
+        return data;
+      }
+      console.warn('[WC] Standings empty from:', url, '— keys:', Object.keys(data ?? {}));
+    } catch (e) {
+      console.warn('[WC] Standings failed:', url, e.message);
+    }
+  }
+  throw new Error('All standings endpoints failed or empty');
+}
+
+function hasStandingsData(data) {
+  if (!data) return false;
+  if (Array.isArray(data?.standings) && data.standings.length > 0) return true;
+  if (data?.standings?.groups?.length > 0) return true;
+  if (data?.children?.length > 0) return true;   // sports.core format
+  if (data?.items?.length > 0) return true;       // paginated core format
+  return false;
 }
 
 // ESPN scoreboard only supports a single date, not ranges
 async function fetchScoreboardDate(yyyymmdd) {
-  return apiFetch(`${ESPN}/scoreboard?dates=${yyyymmdd}&limit=50`);
+  const data = await apiFetch(`${ESPN}/scoreboard?dates=${yyyymmdd}&limit=50`);
+  const count = data?.events?.length ?? 0;
+  if (count === 0) console.warn('[WC] Scoreboard empty for date:', yyyymmdd, '— keys:', Object.keys(data ?? {}));
+  return data;
 }
 
 async function fetchSummary(eventId) {
@@ -615,16 +647,27 @@ function wcDates() {
 ════════════════════════════════════════════════════════ */
 
 function processStandings(data) {
-  // ESPN standings can be either data.standings (array of groups) or data.standings.groups
-  const groups = Array.isArray(data?.standings)
-    ? data.standings
-    : (data?.standings?.groups ?? []);
+  // ESPN returns groups in several different shapes depending on the endpoint/season:
+  //   data.standings           → array of groups  (site API, some seasons)
+  //   data.standings.groups    → array of groups  (site API, other seasons)
+  //   data.children            → array of groups  (sports.core groups endpoint)
+  let groups = [];
+  if (Array.isArray(data?.standings))       groups = data.standings;
+  else if (data?.standings?.groups?.length) groups = data.standings.groups;
+  else if (data?.children?.length)          groups = data.children;
+
+  console.log('[WC] processStandings: found', groups.length, 'groups');
 
   for (const group of groups) {
-    const groupName = group.name ?? group.shortName ?? '';
-    const entries = group.standings?.entries ?? group.entries ?? [];
+    const groupName = group.name ?? group.shortName ?? group.abbreviation ?? '';
+    // Entries live at group.standings.entries or group.entries or group.standings (if array)
+    const entries =
+      group.standings?.entries ??
+      group.entries ??
+      (Array.isArray(group.standings) ? group.standings : []);
+
     for (const entry of entries) {
-      const raw = entry.team?.displayName;
+      const raw = entry.team?.displayName ?? entry.team?.name;
       if (!raw) continue;
       const name = normEspn(raw);
       const stats = {};
@@ -634,19 +677,20 @@ function processStandings(data) {
         rawName:  raw,
         abbrev:   entry.team?.abbreviation,
         group:    groupName,
-        position: entry.rank,
+        position: entry.rank ?? entry.standing,
         note:     entry.note?.description ?? '',
-        pts:  stats.points       ?? 0,
-        gp:   stats.gamesPlayed  ?? 0,
-        wins: stats.wins         ?? 0,
-        draws:stats.ties         ?? 0,
-        losses:stats.losses      ?? 0,
-        gf:   stats.pointsFor    ?? stats.goalsFor    ?? 0,
-        ga:   stats.pointsAgainst?? stats.goalsAgainst?? 0,
-        gd:  (stats.pointsFor ?? 0) - (stats.pointsAgainst ?? 0),
+        pts:   stats.points        ?? 0,
+        gp:    stats.gamesPlayed   ?? 0,
+        wins:  stats.wins          ?? 0,
+        draws: stats.ties          ?? 0,
+        losses:stats.losses        ?? 0,
+        gf:    stats.pointsFor     ?? stats.goalsFor     ?? 0,
+        ga:    stats.pointsAgainst ?? stats.goalsAgainst ?? 0,
+        gd:   (stats.pointsFor ?? 0) - (stats.pointsAgainst ?? 0),
       };
     }
   }
+  console.log('[WC] Standings populated:', Object.keys(state.standings).length, 'teams');
 }
 
 // seedMatchCache: pull completed events from a scoreboard response into matchCache.
