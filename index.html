@@ -767,19 +767,38 @@ function processStandings(data) {
   console.log('[WC] Standings populated:', Object.keys(state.standings).length, 'teams');
 }
 
+// Returns true for any ESPN status that means the match is over.
+// ESPN uses STATUS_FINAL for most sports but WC 2026 may differ.
+function matchIsCompleted(comp) {
+  const t = comp?.status?.type ?? {};
+  if (t.completed === true) return true;
+  const n = (t.name ?? '').toUpperCase();
+  return n.includes('FINAL') || n.includes('FULL_TIME') || n.includes('ENDED') || n.includes('COMPLETE');
+}
+
 // seedMatchCache: pull completed events from a scoreboard response into matchCache.
 // Does NOT touch liveMatches — call updateLiveMatches separately for today's board.
 function seedMatchCache(data) {
+  let added = 0;
   for (const ev of (data?.events ?? [])) {
     if (state.matchCache[ev.id]) continue; // already have it
     const comp = ev.competitions?.[0];
     if (!comp) continue;
-    if (comp.status?.type?.name !== 'STATUS_FINAL') continue;
+
+    const statusName = comp.status?.type?.name ?? 'UNKNOWN';
+    const completed  = matchIsCompleted(comp);
+    const live       = (comp.status?.type?.name ?? '').includes('IN_PROGRESS');
+
+    if (!completed && !live) {
+      console.log('[WC] Skipping event', ev.id, 'status:', statusName);
+      continue;
+    }
 
     const homeC = comp.competitors?.find(c => c.homeAway === 'home') ?? comp.competitors?.[0];
     const awayC = comp.competitors?.find(c => c.homeAway === 'away') ?? comp.competitors?.[1];
     state.matchCache[ev.id] = {
-      processed: false, completed: true,
+      processed: false,
+      completed,
       home: normEspn(homeC?.team?.displayName ?? ''),
       away: normEspn(awayC?.team?.displayName ?? ''),
       homeScore: parseInt(homeC?.score ?? 0) || 0,
@@ -787,7 +806,41 @@ function seedMatchCache(data) {
       date: ev.date ?? '',
       yellows: {}, corners: {}, reds: [], pens: [],
     };
+    if (completed) added++;
   }
+  if (added > 0) console.log('[WC] seedMatchCache added', added, 'completed matches');
+}
+
+// computeStandingsFromMatches: derive team stats directly from match results.
+// Used as primary source since ESPN's 2026 WC standings endpoint returns {}.
+function computeStandingsFromMatches() {
+  const computed = {};
+
+  for (const m of Object.values(state.matchCache)) {
+    if (!m.completed || !m.home || !m.away) continue;
+
+    for (const [team, isHome] of [[m.home, true], [m.away, false]]) {
+      if (!team) continue;
+      if (!computed[team]) {
+        computed[team] = { name: team, gp: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, pts: 0, gd: 0, computed: true };
+      }
+      const s  = computed[team];
+      const gf = isHome ? m.homeScore : m.awayScore;
+      const ga = isHome ? m.awayScore : m.homeScore;
+      s.gp++; s.gf += gf; s.ga += ga; s.gd = s.gf - s.ga;
+      if (gf > ga)      { s.wins++;   s.pts += 3; }
+      else if (gf===ga) { s.draws++;  s.pts += 1; }
+      else              { s.losses++; }
+    }
+  }
+
+  // Merge computed into state.standings, preserving real ESPN data where present
+  for (const [name, data] of Object.entries(computed)) {
+    if (!state.standings[name]) state.standings[name] = data;
+  }
+
+  const n = Object.keys(computed).length;
+  if (n > 0) console.log('[WC] computeStandingsFromMatches:', n, 'teams derived from match results');
 }
 
 // updateLiveMatches: refresh liveMatches from today's scoreboard only.
@@ -1079,14 +1132,21 @@ function renderTeamStatus(team) {
   const s = getTeamStanding(team.espn);
   if (!s) return `<span class="badge badge--tbd">Checking…</span>`;
 
-  if (s.note?.toLowerCase().includes('advance') || (s.position <= 2 && s.gp >= 3)) {
-    return `<span class="badge badge--advancing">✓ Advancing</span>`;
+  // If ESPN standings API gave us group/position data, use it
+  if (!s.computed) {
+    if (s.note?.toLowerCase().includes('advance') || (s.position <= 2 && s.gp >= 3)) {
+      return `<span class="badge badge--advancing">✓ Advancing</span>`;
+    }
+    if (s.note?.toLowerCase().includes('eliminat') || (s.position > 2 && s.gp >= 3)) {
+      return `<span class="badge badge--out">Eliminated</span>`;
+    }
+    const pos = s.position ? `${ordinal(s.position)} · ` : '';
+    return `<span class="badge badge--groups">${pos}${s.group}</span>`;
   }
-  if (s.note?.toLowerCase().includes('eliminat') || (s.position > 2 && s.gp >= 3)) {
-    return `<span class="badge badge--out">Eliminated</span>`;
-  }
-  const pos = s.position ? `${ordinal(s.position)} · ` : '';
-  return `<span class="badge badge--groups">${pos}${s.group}</span>`;
+
+  // Computed from match results — show W/D/L record
+  if (!s.gp) return `<span class="badge badge--tbd">No matches yet</span>`;
+  return `<span class="badge badge--groups">${s.wins}W ${s.draws}D ${s.losses}L · ${s.pts}pts</span>`;
 }
 
 function renderTeamRecord(team) {
@@ -1195,12 +1255,8 @@ function renderAll() {
     ].filter(Boolean).join(' &nbsp;·&nbsp; ');
   }
 
-  if (standingsCount === 0) {
-    grid.innerHTML = `<div class="error-banner">
-      ${state.apiError
-        ? '⚠️ Could not reach the ESPN API — check your connection and refresh.'
-        : '⚠️ Connected but no standings data yet — ESPN may still be loading. Refreshing…'}
-    </div>`;
+  if (matchCount === 0 && state.apiError) {
+    grid.innerHTML = `<div class="error-banner">⚠️ Could not reach the match data API — check your connection and refresh.</div>`;
     return;
   }
 
@@ -1320,6 +1376,9 @@ async function refreshData() {
     );
     console.log('[WC] Match cache:', Object.keys(state.matchCache).length, 'entries,',
       Object.values(state.matchCache).filter(m => m.processed).length, 'processed');
+
+    // Derive team standings from match results (ESPN standings API returns {} for 2026 WC)
+    computeStandingsFromMatches();
 
     state.lastUpdated = Date.now();
     renderAll();
