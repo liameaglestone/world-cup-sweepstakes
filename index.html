@@ -733,7 +733,7 @@ function hasStandingsData(data) {
   if (Array.isArray(data?.standings) && data.standings.length > 0) return true;
   if (data?.standings?.groups?.length > 0) return true;
   if (data?.children?.length > 0) return true;   // sports.core format
-  if (data?.items?.length > 0) return true;       // paginated core format
+  if (data?.items?.length > 0 && !data.items[0]?.$ref) return true; // paginated core format
   return false;
 }
 
@@ -846,6 +846,7 @@ function seedMatchCache(data) {
     state.matchCache[ev.id] = {
       processed: false,
       completed,
+      groupStage: ev.season?.slug === 'group-stage',
       home: normEspn(homeC?.team?.displayName ?? ''),
       away: normEspn(awayC?.team?.displayName ?? ''),
       homeScore: parseInt(homeC?.score ?? 0) || 0,
@@ -937,7 +938,7 @@ function processSummary(eventId, data) {
       const lbl = (s.label ?? '').toLowerCase();
       const v   = parseInt(s.displayValue ?? s.value ?? 0) || 0;
       if (key === 'yellowcards' || lbl.includes('yellow card')) cached.yellows[name] = v;
-      if (key === 'cornerkicks' || lbl.includes('corner kick')) cached.corners[name] = v;
+      if (key === 'woncorners' || key === 'cornerkicks' || lbl.includes('corner')) cached.corners[name] = v;
     }
   }
 
@@ -1000,7 +1001,7 @@ function getTeamStanding(espnName) {
 function aggGroupYellows() {
   const out = {};
   for (const m of Object.values(state.matchCache)) {
-    if (!m.completed) continue;
+    if (!m.completed || m.groupStage === false) continue;
     for (const [t, v] of Object.entries(m.yellows)) out[t] = (out[t] ?? 0) + v;
   }
   return out;
@@ -1009,7 +1010,7 @@ function aggGroupYellows() {
 function aggGroupCorners() {
   const out = {};
   for (const m of Object.values(state.matchCache)) {
-    if (!m.completed) continue;
+    if (!m.completed || m.groupStage === false) continue;
     for (const [t, v] of Object.entries(m.corners)) out[t] = (out[t] ?? 0) + v;
   }
   return out;
@@ -1050,25 +1051,17 @@ function aggBiggestDefeats() {
 }
 
 function getFirstRedCard() {
-  let first = null;
-  for (const m of Object.values(state.matchCache)) {
-    if (!m.completed || !m.reds.length) continue;
-    for (const r of m.reds) {
-      if (!first) first = r;
-    }
-  }
-  return first;
+  const matches = Object.values(state.matchCache)
+    .filter(m => m.completed && m.reds.length > 0)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  return matches[0]?.reds[0] ?? null;
 }
 
 function getFirstPenalty() {
-  let first = null;
-  for (const m of Object.values(state.matchCache)) {
-    if (!m.completed || !m.pens.length) continue;
-    for (const p of m.pens) {
-      if (!first) first = p;
-    }
-  }
-  return first;
+  const matches = Object.values(state.matchCache)
+    .filter(m => m.completed && m.pens.length > 0)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  return matches[0]?.pens[0] ?? null;
 }
 
 /* ════════════════════════════════════════════════════════
@@ -1326,7 +1319,7 @@ function updateTimestamps() {
    them on every page load.
 ════════════════════════════════════════════════════════ */
 
-const CACHE_KEY = 'wc26_matchCache_v2'; // v2: fixes event details parsing
+const CACHE_KEY = 'wc26_matchCache_v3'; // v3: adds groupStage flag, fixes cornerKicks→wonCorners, sorts first red/penalty by date
 const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
 
 function saveCache() {
