@@ -558,6 +558,7 @@ const state = {
 ════════════════════════════════════════════════════════ */
 
 const ESPN = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world';
+const WC_START = new Date('2026-06-11');
 
 async function apiFetch(url) {
   const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
@@ -569,13 +570,27 @@ async function fetchStandings() {
   return apiFetch(`${ESPN}/standings`);
 }
 
-async function fetchScoreboard(dateRange) {
-  const suffix = dateRange ? `?dates=${dateRange}&limit=200` : '';
-  return apiFetch(`${ESPN}/scoreboard${suffix}`);
+// ESPN scoreboard only supports a single date, not ranges
+async function fetchScoreboardDate(yyyymmdd) {
+  return apiFetch(`${ESPN}/scoreboard?dates=${yyyymmdd}&limit=50`);
 }
 
 async function fetchSummary(eventId) {
   return apiFetch(`${ESPN}/summary?event=${eventId}`);
+}
+
+// Returns array of 'YYYYMMDD' strings from WC_START through today
+function wcDates() {
+  const dates = [];
+  const today = new Date();
+  today.setHours(23, 59, 59);
+  for (let d = new Date(WC_START); d <= today; d.setDate(d.getDate() + 1)) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    dates.push(`${y}${m}${day}`);
+  }
+  return dates;
 }
 
 /* ════════════════════════════════════════════════════════
@@ -617,72 +632,121 @@ function processStandings(data) {
   }
 }
 
-function processScoreboard(data) {
-  state.liveMatches = [];
-  const events = data?.events ?? [];
-  const completedIds = [];
-
-  for (const ev of events) {
-    const comp  = ev.competitions?.[0];
+// seedMatchCache: pull completed events from a scoreboard response into matchCache.
+// Does NOT touch liveMatches — call updateLiveMatches separately for today's board.
+function seedMatchCache(data) {
+  for (const ev of (data?.events ?? [])) {
+    if (state.matchCache[ev.id]) continue; // already have it
+    const comp = ev.competitions?.[0];
     if (!comp) continue;
-    const statusName = comp.status?.type?.name ?? '';
-    const isLive      = statusName === 'STATUS_IN_PROGRESS';
-    const isCompleted = statusName === 'STATUS_FINAL';
+    if (comp.status?.type?.name !== 'STATUS_FINAL') continue;
 
-    if (isLive || isCompleted) {
-      const [c1, c2] = comp.competitors ?? [];
-      const home = normEspn(c1?.homeAway === 'home' ? c1.team?.displayName : c2?.team?.displayName);
-      const away = normEspn(c1?.homeAway === 'away' ? c1.team?.displayName : c2?.team?.displayName);
-      const homeScore = parseInt(c1?.homeAway === 'home' ? c1.score : c2?.score) || 0;
-      const awayScore = parseInt(c1?.homeAway === 'away' ? c1.score : c2?.score) || 0;
+    const homeC = comp.competitors?.find(c => c.homeAway === 'home') ?? comp.competitors?.[0];
+    const awayC = comp.competitors?.find(c => c.homeAway === 'away') ?? comp.competitors?.[1];
+    state.matchCache[ev.id] = {
+      processed: false, completed: true,
+      home: normEspn(homeC?.team?.displayName ?? ''),
+      away: normEspn(awayC?.team?.displayName ?? ''),
+      homeScore: parseInt(homeC?.score ?? 0) || 0,
+      awayScore: parseInt(awayC?.score ?? 0) || 0,
+      date: ev.date ?? '',
+      yellows: {}, corners: {}, reds: [], pens: [],
+    };
+  }
+}
 
-      if (isLive) {
-        state.liveMatches.push({ home, away, homeScore, awayScore, clock: comp.status?.displayClock, eventId: ev.id });
-      }
-      if (isCompleted) {
-        completedIds.push({ id: ev.id, home, away, homeScore, awayScore, season: ev.season?.type });
-        // Seed basic match data if not cached
-        if (!state.matchCache[ev.id]) {
-          state.matchCache[ev.id] = { processed: false, completed: true, groupStage: true, home, away, homeScore, awayScore, yellows:{}, corners:{}, reds:[], pens:[] };
-        }
-      }
+// updateLiveMatches: refresh liveMatches from today's scoreboard only.
+function updateLiveMatches(data) {
+  state.liveMatches = [];
+  for (const ev of (data?.events ?? [])) {
+    const comp = ev.competitions?.[0];
+    if (!comp) continue;
+    const status = comp.status?.type?.name ?? '';
+    if (status !== 'STATUS_IN_PROGRESS' && status !== 'STATUS_HALFTIME') continue;
+
+    const homeC = comp.competitors?.find(c => c.homeAway === 'home') ?? comp.competitors?.[0];
+    const awayC = comp.competitors?.find(c => c.homeAway === 'away') ?? comp.competitors?.[1];
+    state.liveMatches.push({
+      home: normEspn(homeC?.team?.displayName ?? ''),
+      away: normEspn(awayC?.team?.displayName ?? ''),
+      homeScore: parseInt(homeC?.score ?? 0) || 0,
+      awayScore: parseInt(awayC?.score ?? 0) || 0,
+      clock: comp.status?.displayClock ?? '',
+      eventId: ev.id,
+    });
+    // Also seed into matchCache in case it ends before next refresh
+    if (!state.matchCache[ev.id]) {
+      const homeC2 = comp.competitors?.find(c => c.homeAway === 'home') ?? comp.competitors?.[0];
+      const awayC2 = comp.competitors?.find(c => c.homeAway === 'away') ?? comp.competitors?.[1];
+      state.matchCache[ev.id] = {
+        processed: false, completed: false,
+        home: normEspn(homeC2?.team?.displayName ?? ''),
+        away: normEspn(awayC2?.team?.displayName ?? ''),
+        homeScore: 0, awayScore: 0, date: ev.date ?? '',
+        yellows: {}, corners: {}, reds: [], pens: [],
+      };
     }
   }
-  return completedIds;
 }
 
 function processSummary(eventId, data) {
   const cached = state.matchCache[eventId];
   if (!cached || cached.processed) return;
 
-  // Yellow cards & corners from boxscore
+  // ── Yellow cards & corners from boxscore team statistics ──────────────────
   for (const teamData of (data?.boxscore?.teams ?? [])) {
-    const name = normEspn(teamData.team?.displayName);
+    const name = normEspn(teamData.team?.displayName ?? '');
     if (!name) continue;
     for (const s of (teamData.statistics ?? [])) {
-      const v = parseInt(s.displayValue ?? s.value ?? 0) || 0;
-      if (s.name === 'yellowCards'  || s.label === 'Yellow Cards')   cached.yellows[name] = v;
-      if (s.name === 'cornerKicks'  || s.label === 'Corner Kicks')   cached.corners[name] = v;
+      const key = (s.name ?? '').toLowerCase();
+      const lbl = (s.label ?? '').toLowerCase();
+      const v   = parseInt(s.displayValue ?? s.value ?? 0) || 0;
+      if (key === 'yellowcards' || lbl.includes('yellow card')) cached.yellows[name] = v;
+      if (key === 'cornerkicks' || lbl.includes('corner kick')) cached.corners[name] = v;
     }
   }
 
-  // Red cards & penalties from plays/key events
-  const plays = data?.keyEvents ?? data?.plays ?? [];
-  for (const play of plays) {
-    const typeId   = String(play.type?.id ?? '');
-    const typeText = (play.type?.text ?? '').toLowerCase();
-    const team     = normEspn(play.team?.displayName ?? play.participants?.[0]?.athlete?.team?.displayName);
-    const min      = play.clock?.displayValue ?? '?';
+  // ── Key events from header.competitions[0].details ───────────────────────
+  // ESPN stores red cards, penalties etc. here with boolean flags.
+  const details = data?.header?.competitions?.[0]?.details ?? [];
+  for (const d of details) {
+    const teamName = normEspn(
+      d.team?.displayName ?? d.team?.shortDisplayName ?? ''
+    );
+    const min = d.clock?.displayValue ?? '?';
 
-    if (typeId === '73' || typeText.includes('red card') || typeText === 'red_card') {
-      cached.reds.push({ team, min });
+    // Red card (direct red or second yellow → red)
+    if (d.redCard === true || d.yellowRedCard === true) {
+      if (teamName) cached.reds.push({ team: teamName, min });
     }
-    if (typeId === '66' || typeText.includes('penalty') && typeText.includes('concede')) {
-      cached.pens.push({ team, min });
+
+    // Penalty kick: d.team is the team that TOOK it (scored/attempted).
+    // We want the team that CONCEDED it (the other side).
+    if (d.penaltyKick === true) {
+      const conceder = teamName === cached.home ? cached.away : cached.home;
+      if (conceder) cached.pens.push({ team: conceder, min });
+    }
+  }
+
+  // ── Fallback: scan commentary/plays if details were empty ────────────────
+  if (!details.length) {
+    const plays = data?.commentary ?? data?.plays ?? [];
+    for (const p of plays) {
+      const txt  = (p.type?.text ?? p.text ?? '').toLowerCase();
+      const team = normEspn(p.team?.displayName ?? '');
+      const min  = p.clock?.displayValue ?? '?';
+      if (p.redCard || txt.includes('red card')) {
+        if (team) cached.reds.push({ team, min });
+      }
+      if (p.penaltyKick || (txt.includes('penalty') && !txt.includes('miss') && !txt.includes('saved'))) {
+        const conceder = team === cached.home ? cached.away : cached.home;
+        if (conceder) cached.pens.push({ team: conceder, min });
+      }
     }
   }
 
   cached.processed = true;
+  saveCache();
 }
 
 /* ════════════════════════════════════════════════════════
@@ -997,47 +1061,92 @@ function updateTimestamps() {
 }
 
 /* ════════════════════════════════════════════════════════
+   LOCALSTORAGE CACHE
+   Persist processed match summaries so we don't re-fetch
+   them on every page load.
+════════════════════════════════════════════════════════ */
+
+const CACHE_KEY = 'wc26_matchCache';
+const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
+
+function saveCache() {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      ts: Date.now(),
+      matches: state.matchCache,
+    }));
+  } catch (_) {}
+}
+
+function loadCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return;
+    const { ts, matches } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) return; // expired
+    // Only restore already-processed entries to avoid skipping re-fetch
+    for (const [id, m] of Object.entries(matches)) {
+      if (m.processed) state.matchCache[id] = m;
+    }
+  } catch (_) {}
+}
+
+/* ════════════════════════════════════════════════════════
    REFRESH LOOP
 ════════════════════════════════════════════════════════ */
 
 let _refreshTimer   = null;
 let _countdownTimer = null;
 let _nextRefreshAt  = null;
+let _historicalDone = false;
 
-async function refreshData(force = false) {
+async function refreshData() {
   const btn = document.getElementById('refresh-btn');
   btn.classList.add('spinning');
   state.apiError = false;
 
   try {
-    // Fetch standings and today's scoreboard in parallel
-    const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-    const wc_start = '20260611';
-    const wc_end   = '20260719';
+    const dates = wcDates();
+    const todayStr = dates[dates.length - 1];
 
-    const [standingsData, boardData] = await Promise.allSettled([
+    // ── 1. Standings + today's live scoreboard (always) ──────────────────
+    const [standingsRes, todayRes] = await Promise.allSettled([
       fetchStandings(),
-      fetchScoreboard(`${wc_start}-${wc_end}`).catch(() => fetchScoreboard()),
+      fetchScoreboardDate(todayStr),
     ]);
-
-    if (standingsData.status === 'fulfilled') processStandings(standingsData.value);
-    if (boardData.status === 'fulfilled')     processScoreboard(boardData.value);
-
-    if (standingsData.status === 'rejected' && boardData.status === 'rejected') {
+    if (standingsRes.status === 'fulfilled') processStandings(standingsRes.value);
+    if (todayRes.status === 'fulfilled') {
+      updateLiveMatches(todayRes.value);
+      seedMatchCache(todayRes.value);
+    }
+    if (standingsRes.status === 'rejected' && todayRes.status === 'rejected') {
       state.apiError = true;
     }
 
-    // Fetch summaries for uncached completed matches (up to 30 most recent)
+    // ── 2. Historical scoreboards (once per session) ──────────────────────
+    // Fetch every day from WC start so we have all completed match IDs.
+    if (!_historicalDone) {
+      const pastDates = dates.slice(0, -1); // all days except today (already fetched)
+      await Promise.allSettled(
+        pastDates.map(date =>
+          fetchScoreboardDate(date)
+            .then(d => seedMatchCache(d))
+            .catch(() => {})
+        )
+      );
+      _historicalDone = true;
+    }
+
+    // ── 3. Summaries for any unprocessed completed matches ────────────────
     const toFetch = Object.entries(state.matchCache)
       .filter(([, m]) => m.completed && !m.processed)
-      .slice(-30)
       .map(([id]) => id);
 
     await Promise.allSettled(
       toFetch.map(id =>
         fetchSummary(id)
           .then(data => processSummary(id, data))
-          .catch(() => { /* silently skip */ })
+          .catch(() => {})
       )
     );
 
@@ -1072,13 +1181,15 @@ function scheduleNext() {
 function manualRefresh() {
   clearTimeout(_refreshTimer);
   clearInterval(_countdownTimer);
-  refreshData(true);
+  _historicalDone = false; // force re-fetch of historical data too
+  refreshData();
 }
 
 /* ════════════════════════════════════════════════════════
    BOOT
 ════════════════════════════════════════════════════════ */
 
+loadCache();
 refreshData();
 </script>
 </body>
