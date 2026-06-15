@@ -629,9 +629,9 @@ const SWEEPSTAKES = [
     buyIn: 10,
     participants: 16,
     teams: [
-      { name: 'Spain', flag: '🇪🇸', espn: 'Spain', primary: true  },
-      { name: 'TBD',   flag: '❓',  espn: null,    primary: false },
-      { name: 'TBD',   flag: '❓',  espn: null,    primary: false },
+      { name: 'Spain',              flag: '🇪🇸', espn: 'Spain',               primary: true  },
+      { name: 'Bosnia-Herzegovina', flag: '🇧🇦', espn: 'Bosnia-Herzegovina',  primary: false },
+      { name: 'Czechia',            flag: '🇨🇿', espn: 'Czech Republic',       primary: false },
     ],
     prizes: [
       { icon: '🏆', name: 'WC Winner',           stat: 'tournament_winner',    value: 70 },
@@ -658,6 +658,11 @@ const ESPN_NAME_MAP = {
   'colombia':                   'Colombia',
   'england':                    'England',
   'spain':                      'Spain',
+  'czech republic':             'Czechia',
+  'czechia':                    'Czechia',
+  'bosnia-herzegovina':         'Bosnia-Herzegovina',
+  'bosnia & herzegovina':       'Bosnia-Herzegovina',
+  'bosnia and herzegovina':     'Bosnia-Herzegovina',
 };
 
 function normEspn(name) {
