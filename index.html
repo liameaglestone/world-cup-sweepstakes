@@ -612,13 +612,12 @@ const SWEEPSTAKES = [
       { name: 'Congo DR', flag: '🇨🇩', espn: 'DR Congo', primary: true  },
       { name: 'England',  flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', espn: 'England',  primary: false },
     ],
+    pot: 91.50,
     prizes: [
-      { icon: '🏆', name: 'WC Winner',                  stat: 'tournament_winner'   },
-      { icon: '🥈', name: 'Runner Up',                   stat: 'tournament_runner_up'},
-      { icon: '⚡', name: 'Goal of the Tournament',     stat: 'goal_of_tournament'  },
-      { icon: '⛳', name: 'Most Group Stage Corners',   stat: 'group_corners'       },
-      { icon: '🟨', name: 'Most Group Stage Yellows',   stat: 'group_yellows'       },
-      { icon: '🥅', name: 'First Penalty Conceded',     stat: 'first_penalty'       },
+      { icon: '🏆', name: 'WC Winner',           stat: 'tournament_winner', value: 50 },
+      { icon: '🥈', name: 'Losing Finalist',      stat: 'losing_finalist',   value: 20 },
+      { icon: '⚽', name: 'Team with Top Scorer', stat: 'top_scorer_team',   value: 10 },
+      { icon: '🥄', name: 'Wooden Spoon',         stat: 'wooden_spoon',      value: 10 },
     ],
   },
   {
@@ -1043,6 +1042,14 @@ function aggDisciplinaryPts() {
   return out;
 }
 
+function aggWoodenSpoon() {
+  // Worst team: fewest points among all teams with at least 2 games played
+  const candidates = Object.values(state.standings).filter(s => s.gp >= 2);
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => a.pts - b.pts || a.gd - b.gd || a.gf - b.gf);
+  return candidates[0];
+}
+
 function aggGoalsConceded() {
   const out = {};
   for (const [name, s] of Object.entries(state.standings)) {
@@ -1111,8 +1118,17 @@ function resolveStat(stat, sw) {
     case 'tournament_winner': {
       return { label: 'TBD', sub: 'Tournament in progress', yours: false };
     }
-    case 'tournament_runner_up': {
+    case 'tournament_runner_up':
+    case 'losing_finalist': {
       return { label: 'TBD', sub: 'Tournament in progress', yours: false };
+    }
+    case 'wooden_spoon': {
+      const w = aggWoodenSpoon();
+      if (!w) return { label: 'Tracking…', sub: 'Need 2+ games per team', yours: false };
+      return { label: w.name, sub: `${w.pts}pts · ${w.gp}GP · GD${w.gd >= 0 ? '+' : ''}${w.gd}`, yours: isYours(w.name) };
+    }
+    case 'top_scorer_team': {
+      return { label: 'Pending', sub: 'Confirmed at tournament end', yours: false };
     }
     case 'goal_of_tournament': {
       return { label: 'Pending', sub: 'Announced at tournament end', yours: false };
@@ -1242,7 +1258,7 @@ function renderTeamPts(team) {
 }
 
 function renderCard(sw) {
-  const pool = sw.buyIn * sw.participants;
+  const pool = sw.pot ?? sw.buyIn * sw.participants;
 
   const teamsHtml = sw.teams.map(team => {
     const isLive = team.espn && teamIsLive(team.espn);
