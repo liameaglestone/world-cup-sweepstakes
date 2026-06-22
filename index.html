@@ -637,7 +637,7 @@ const SWEEPSTAKES = [
       { icon: '🏆', name: 'WC Winner',           stat: 'tournament_winner',    value: 70 },
       { icon: '🥅', name: 'Most Goals Conceded', stat: 'most_goals_conceded',  value: 30 },
       { icon: '📉', name: 'Biggest Defeat',       stat: 'biggest_defeat',       value: 30 },
-      { icon: '🧤', name: 'Most Clean Sheets',   stat: 'most_clean_sheets',    value: 30 },
+      { icon: '🟨', name: 'Most Disciplinary Pts', stat: 'most_disciplinary',   value: 30 },
     ],
   },
 ];
@@ -1033,6 +1033,16 @@ function aggCleanSheets() {
   return out;
 }
 
+function aggDisciplinaryPts() {
+  const out = {};
+  for (const m of Object.values(state.matchCache)) {
+    if (!m.completed) continue;
+    for (const [team, yellows] of Object.entries(m.yellows)) out[team] = (out[team] ?? 0) + yellows;
+    for (const { team } of m.reds) out[team] = (out[team] ?? 0) + 3;
+  }
+  return out;
+}
+
 function aggGoalsConceded() {
   const out = {};
   for (const [name, s] of Object.entries(state.standings)) {
@@ -1169,6 +1179,13 @@ function resolveStat(stat, sw) {
       if (!top) return { label: 'Loading…', sub: null, yours: false };
       const [team, count] = top;
       return { label: team, sub: `${count} clean sheet${count!==1?'s':''}`, yours: isYours(team) };
+    }
+    case 'most_disciplinary': {
+      const m = aggDisciplinaryPts();
+      const top = topEntry(m);
+      if (!top) return { label: 'Loading…', sub: null, yours: false };
+      const [team, pts] = top;
+      return { label: team, sub: `${pts} pt${pts!==1?'s':''} (1Y=1, 1R=3)`, yours: isYours(team) };
     }
     default:
       return { label: '–', sub: null, yours: false };
